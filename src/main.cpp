@@ -4,38 +4,21 @@
 #define TRIGGERPIN 9
 #define BUZZER 6
 #define RECV_PIN 8
-//Lasertag for arduino alpha v1.1
+//Lasertag for arduino alpha v1.2
 //IR diode is connected to pin 3
 
 IRsend irsend;
-int ir_pin = 0, ammo = 100, buzz_pin = 0;
+int ir_pin = 0, ammo = 30, buzz_pin = 0;
 unsigned long currentMillis;
-long reloadTime = 4000;          //Time to reload in miliseconds
-long buzzTime = 100;             //Time buzzing after being shot
+unsigned long reloadTime = 4000;          //Time to reload in miliseconds
+unsigned long buzzTime = 150, sendDelay = 400;             //Time buzzing after being shot
+unsigned long lastReloadTime = 0, lastSentMsg = 0, lastBuzz = 0;
 SoftwareSerial mySerial(10, 11); // RX, TX
 IRrecv irrecv(RECV_PIN);         //Pin where irdetector OUT goes
 decode_results results;
-char command;
+int command;
 int bullet = 2000; //2000 - undefined, 2960 - RED, 2950 - BLUE
-char team = "UNDEFINED";
-
-
-void buzzOn()
-{
-      digitalWrite(BUZZER, HIGH);
-}
-
-void buzzOff()
-{
-      digitalWrite(BUZZER, LOW);
-}
-
-void sendBtMsg(char* msg){
-  if (mySerial.available()) {
-    mySerial.write(msg);
-  }
-}
-
+int team = 0; //0 - no team, 1-red, 2-blue
 
 void setup()
 {
@@ -61,48 +44,74 @@ void setup()
 
 }
 
+void buzzOn()
+{
+      digitalWrite(BUZZER, HIGH);
+}
+
+void buzzOff()
+{
+      digitalWrite(BUZZER, LOW);
+}
+
+void sendBtMsg(char* msg){
+  Serial.write(msg);
+  mySerial.write(msg);
+}
+
+void counter(SoftwareSerial mySerial, int bullet){
+
+  if((millis() - lastSentMsg > sendDelay)){
+    mySerial.println(bullet);
+    lastSentMsg = millis();
+  }
+
+
+}
 void loop()
 {
   //Shoot handling section
 	ir_pin = digitalRead(TRIGGERPIN);
 	if(ir_pin == LOW && ammo > 0){
     irsend.sendSony(bullet, 12);
-		delay(20);
-		ammo--;
+    ammo--;
+    if(ammo != 0) counter(mySerial, bullet);
+    Serial.println(ammo);
 	}
 	if(ammo == 0){
-    currentMillis = millis(); //delay for reloadTime while handling other events
-    if(currentMillis % reloadTime == 0){
-          ammo = 100;
-          sendBtMsg("reload");
+    if ((millis() - lastReloadTime) > reloadTime){
+      sendBtMsg("reload");
+      lastReloadTime = millis();
     }
 	}
 
   //IR reciever handling
   buzz_pin = digitalRead(BUZZER);
+
   if (irrecv.decode(&results)) {
     Serial.println(results.value);
 
-    if(results.value == 2960 && team == "RED"){
+    if(results.value == 2960 && team == 1){
       buzzOn();
     }
     irrecv.resume(); // Receive the next value
 
-    if(results.value == 2950 && team == "BLUE"){
+    if(results.value == 2950 && team == 2){
       buzzOn();
     }
     irrecv.resume(); // Receive the next value
 
-    if(results.value == 2000 && team == "UNDEFINED"){
+
+    if(results.value == 2000 && team == 0){
       buzzOn();
     }
     irrecv.resume(); // Receive the next value
   }
-
+  //Buzzer handling
   if(buzz_pin == HIGH){
-    currentMillis = millis();
-    if(currentMillis % buzzTime == 0){
+    if(millis() - lastBuzz > buzzTime){
        buzzOff();
+       lastBuzz = millis();
      }
   }
 
@@ -110,20 +119,20 @@ void loop()
     command = mySerial.read();
     //Setup teams and bullet IR codes
     //Handle commands
-    if(command == "BLUE"){
+    //Set team to blue
+    if(command == '2'){
       bullet = 2960;
-      team = "BLUE";
-      sendBtMsg("Blue");
-    }else if(command =="RED"){
+      team = 2;
+      //Set team to red
+    }else if(command == '1'){
       bullet = 2950;
-      team = "RED";
-      sendBtMsg("Red");
-    }else if(command =="DEATMATCH"){
+      team = 1;
+      //set no team - deadmatch mode
+    }else if(command == '0'){
       bullet = 2000;
-      team = "UNDEFINED";
-      sendBtMsg("Deadmatch");
-    }else if(command =="reset"){
-      ammo = 100;
+      team = 0;
+    }else if(command == '4'){
+      ammo = 30;
     }
     //Debug purposes serial write
     Serial.write(command);
