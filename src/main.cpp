@@ -4,7 +4,7 @@
 #define TRIGGERPIN 9
 #define BUZZER 6
 #define RECV_PIN 8
-//Lasertag for arduino alpha v1.2
+//Lasertag for arduino alpha v1.3
 //IR diode is connected to pin 3
 
 IRsend irsend;
@@ -131,7 +131,7 @@ void loop()
     }else if(command == '0'){
       bullet = 2000;
       team = 0;
-    }else if(command == '4'){
+    }else if(command == '4' || command == '5'){
       ammo = 30;
     }
     //Debug purposes serial write
